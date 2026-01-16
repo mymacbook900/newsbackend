@@ -8,28 +8,66 @@ const communitySchema = new mongoose.Schema(
             unique: true,
             trim: true
         },
-        description: {
-            type: String,
-            default: ""
-        },
+        description: { type: String, default: "" },
+        image: { type: String, default: "" }, // Banner/Logo
+
         type: {
             type: String,
-            enum: ["Public", "Private"],
-            default: "Public"
+            enum: ["Single", "Multi"], // Single Creator vs Multi-User
+            default: "Single"
         },
-        status: {
-            type: String,
-            enum: ["Active", "Hidden", "Dissolved"],
-            default: "Active"
+
+        creator: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true
         },
+
+        // For Multi-User Communities
+        authorizedPersons: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }],
+
+        // Members and Followers
         members: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
         }],
-        membersCount: {
-            type: Number,
-            default: 0
-        }
+        followers: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }],
+
+        joinRequests: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }],
+
+        status: {
+            type: String,
+            enum: ["Active", "Pending", "Hidden", "Dissolved"],
+            default: "Active"
+        },
+
+        membersCount: { type: Number, default: 0 },
+        followersCount: { type: Number, default: 0 },
+
+        // Email Verification (Single Creator)
+        domainEmail: { type: String, default: "" },
+        emailOTP: { type: String, default: null },
+        emailOTPExpires: { type: Date, default: null },
+        isEmailVerified: { type: Boolean, default: false },
+
+        // Multi-User Approval
+        pendingAuthorizedPersons: [{
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            email: { type: String },
+            otp: { type: String },
+            otpExpires: { type: Date },
+            invitedAt: { type: Date, default: Date.now }
+        }],
+        approvalCount: { type: Number, default: 0 }
     },
     { timestamps: true }
 );

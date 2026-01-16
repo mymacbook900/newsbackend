@@ -4,24 +4,68 @@ import News from '../models/News.js';
 import ModerationReport from '../models/ModerationReport.js';
 import CaseStudy from '../models/CaseStudy.js';
 
-export const getLogs = async (req, res) => {
+/* ================= LOG ACTIVITY ================= */
+// Helper function to be used by other controllers
+export const logActivity = async (userId, action, targetModel, targetId, details = "") => {
     try {
-        const logs = await ActivityLog.find().sort({ timestamp: -1 }).limit(50);
+        const newLog = new ActivityLog({
+            user: userId,
+            action,
+            targetModel,
+            targetId,
+            details
+        });
+        await newLog.save();
+    } catch (error) {
+        console.error("Log Activity Error:", error);
+    }
+};
+
+/* ================= ADMIN: GET SPECIFIC USER LOGS ================= */
+export const getUserLogs = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const logs = await ActivityLog.find({ user: id })
+            .sort({ timestamp: -1 })
+            .populate('targetId', 'title name content')
+            .limit(50);
+        res.status(200).json(logs);
+    } catch (error) {
+        console.error("Get Specific User Logs Error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+/* ================= GET USER ACTIVITY (Targeted at 'me') ================= */
+export const getUserActivity = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const logs = await ActivityLog.find({ user: userId })
+            .sort({ timestamp: -1 })
+            .populate('targetId', 'title name content') // works for News, Community, Post
+            .limit(100);
+
+        res.status(200).json(logs);
+    } catch (error) {
+        console.error("Get User Activity Error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+/* ================= ADMIN: GET ALL LOGS ================= */
+export const getAllLogs = async (req, res) => {
+    try {
+        const logs = await ActivityLog.find()
+            .populate('user', 'fullName email')
+            .sort({ timestamp: -1 })
+            .limit(50);
         res.status(200).json(logs);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-export const createLog = async (action, user, details) => {
-    try {
-        const newLog = new ActivityLog({ action, user, details });
-        await newLog.save();
-    } catch (error) {
-        console.error("Log Creation Error:", error);
-    }
-};
-
+/* ================= DASHBOARD STATS (Unchanged mostly) ================= */
 export const getDashboardStats = async (req, res) => {
     try {
         const totalNews = await News.countDocuments();

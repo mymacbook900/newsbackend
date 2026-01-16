@@ -7,9 +7,18 @@ const eventSchema = new mongoose.Schema(
             required: true,
             trim: true
         },
+        description: { type: String, default: "" },
         organizer: {
-            type: String,
+            type: String, // Name of organizer or Community Name
             required: true
+        },
+        organizerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User" // Or Community? Usually user or community creator checks
+        },
+        community: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Community"
         },
         date: {
             type: Date,
@@ -25,14 +34,29 @@ const eventSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["Upcoming", "Past"],
+            enum: ["Upcoming", "Past", "Cancelled"],
             default: "Upcoming"
         },
         type: {
             type: String,
             enum: ["Community", "Reporter"],
             required: true
-        }
+        },
+        // Paid Event details
+        isPaid: { type: Boolean, default: false },
+        price: { type: Number, default: 0 },
+        currency: { type: String, default: "INR" },
+
+        contactDetails: {
+            email: { type: String, default: "" },
+            phone: { type: String, default: "" },
+            isVisible: { type: Boolean, default: false } // Requires approval to show
+        },
+
+        attendees: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }]
     },
     { timestamps: true }
 );

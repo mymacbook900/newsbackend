@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendEmail } from "../middlewares/nodeMailer.js";
+import ActivityLog from "../models/ActivityLog.js"; // Optional import if using direct log, or use controller helper if possible
 
 /* ================= REGISTER ================= */
 export const registerUser = async (req, res) => {
@@ -18,7 +19,7 @@ export const registerUser = async (req, res) => {
     const newUser = new User({
       email,
       password: hashedPassword,
-      ...rest
+      ...rest // rest includes profilePicture, phone, address etc.
     });
 
     await newUser.save();
@@ -62,9 +63,39 @@ export const loginUser = async (req, res) => {
 /* ================= GET USERS ================= */
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const { role } = req.query;
+    const query = role ? { role } : {};
+    const users = await User.find(query).select("-password").sort({ createdAt: -1 });
     res.status(200).json(users);
   } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= UPDATE USER ================= */
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullName, phone, role, address, profilePicture, email } = req.body; // Added profilePicture
+
+    const updateData = { fullName, phone, role, address, email };
+
+    if (profilePicture) {
+      updateData.profilePicture = profilePicture;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    );
+
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({ message: "User updated successfully", user });
+  } catch (error) {
+    console.error("Update User Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -73,11 +104,11 @@ export const getUsers = async (req, res) => {
 export const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, phone } = req.body;
 
     const user = await User.findByIdAndUpdate(
       id,
-      { status },
+      { status, phone },
       { new: true }
     );
 
@@ -93,7 +124,10 @@ export const updateUserStatus = async (req, res) => {
 /* ================= GET USER BY ID ================= */
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password");
+    const user = await User.findById(req.params.id)
+      .select("-password")
+      .populate('savedContent.item')
+      .populate('joinedCommunities', 'name icon membersCount description');
     if (!user)
       return res.status(404).json({ message: "User not found" });
 
@@ -246,17 +280,6 @@ export const deleteUser = async (req, res) => {
 /* ================= REPORTERS ================= */
 export const getReporters = async (req, res) => {
   try {
-    // Fetch both verified Reporters and those with pending verification status
-    // Or simpler: fetch where role is Reporter OR documents.verificationStatus is Pending
-    const query = {
-      $or: [
-        { role: "Reporter" },
-        { "documents.verificationStatus": "Pending" },
-        { "status": "Pending", "documents.verificationStatus": "Applied" } // Adjust based on flow
-      ]
-    };
-    // For now, let's just fetch all where role is Reporter OR documents.verificationStatus is NOT "Not Applied"
-    // To match frontend "Reporter Management", usually we see applicants there.
     const reporters = await User.find({
       $or: [
         { role: "Reporter" },
@@ -293,6 +316,62 @@ export const verifyReporter = async (req, res) => {
     res.status(200).json({ message: "Reporter status updated", user });
   } catch (error) {
     console.error("Verify Reporter Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= REPORTER APPLICATION (NEW) ================= */
+export const applyForReporter = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.body.userId; // Allow userId in body for testing
+    const { aadhaar, pan } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.documents = {
+      aadhaar,
+      pan,
+      verificationStatus: "Pending"
+    };
+
+    await user.save();
+    res.status(200).json({ message: "Application submitted successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= SAVED CONTENT (NEW) ================= */
+export const saveContent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { itemId, itemModel } = req.body; // e.g., "News", "Post"
+
+    const user = await User.findById(userId);
+
+    const exists = user.savedContent.find(s => s.item.toString() === itemId);
+
+    if (exists) {
+      user.savedContent = user.savedContent.filter(s => s.item.toString() !== itemId);
+      await user.save();
+      return res.status(200).json({ message: "Content unsaved", saved: false });
+    } else {
+      user.savedContent.push({ item: itemId, itemModel });
+      await user.save();
+      return res.status(200).json({ message: "Content saved", saved: true });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getSavedContent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId).populate('savedContent.item');
+    res.status(200).json(user.savedContent);
+  } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 };

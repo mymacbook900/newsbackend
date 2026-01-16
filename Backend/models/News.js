@@ -11,9 +11,14 @@ const newsSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        // Author can be a registered User (Reporter) or Admin
         author: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+        // For external news or when specific author name is needed (e.g. "Agency Name")
+        authorName: {
             type: String,
-            required: true,
             default: "Admin"
         },
         category: {
@@ -24,29 +29,26 @@ const newsSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["Pending", "Published", "Rejected"],
+            enum: ["Pending", "Published", "Rejected"], // Published = Verified
             default: "Pending"
         },
-        views: {
-            type: Number,
-            default: 0
+        isVerified: {
+            type: Boolean,
+            default: false
         },
-        likes: {
-            type: Number,
-            default: 0
+        isExternal: {
+            type: Boolean,
+            default: false
         },
-        shares: {
-            type: Number,
-            default: 0
-        },
-        image: {
+        externalSource: {
             type: String,
             default: ""
         },
-        date: {
-            type: Date,
-            default: Date.now
-        }
+        views: { type: Number, default: 0 },
+        likes: { type: Number, default: 0 },
+        shares: { type: Number, default: 0 },
+        image: { type: String, default: "" },
+        date: { type: Date, default: Date.now }
     },
     { timestamps: true }
 );

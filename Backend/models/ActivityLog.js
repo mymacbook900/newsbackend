@@ -1,16 +1,29 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const activityLogSchema = new mongoose.Schema({
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
     action: {
         type: String,
-        required: true
+        required: true,
+        enum: ["View", "Like", "Share", "Comment", "Save", "Create", "Update", "Delete", "Join", "Follow"]
     },
-    user: {
+    targetModel: {
         type: String,
-        required: true
+        required: true,
+        enum: ["News", "Post", "Event", "CaseStudy", "Community", "User"]
+    },
+    targetId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+        refPath: 'targetModel'
     },
     details: {
-        type: String
+        type: String, // Optional description
+        default: ""
     },
     timestamp: {
         type: Date,
@@ -18,6 +31,4 @@ const activityLogSchema = new mongoose.Schema({
     }
 });
 
-const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
-
-export default ActivityLog;
+export default mongoose.model("ActivityLog", activityLogSchema);
