@@ -1,5 +1,7 @@
 import News from "../models/News.js";
 import User from "../models/User.js";
+import Settings from "../models/Settings.js";
+import { logActivity } from "./Activity.js";
 
 /* ================= CREATE NEWS ================= */
 export const createNews = async (req, res) => {
@@ -79,14 +81,20 @@ export const getNewsById = async (req, res) => {
 
         if (!news) return res.status(404).json({ message: "News not found" });
 
-        // Update Reporter Earnings (One-time or approximated here)
-        // Ideally this should be throttled or handled properly
+        // Update Reporter Earnings
         if (news.author && news.status === "Published") {
-            // Example rate: 0.1 per view (Get from Settings in future)
-            const EARNING_PER_VIEW = 0.1;
-            await User.findByIdAndUpdate(news.author, {
-                $inc: { "earnings.currentBalance": EARNING_PER_VIEW, "earnings.totalEarned": EARNING_PER_VIEW }
-            });
+            const settings = await Settings.findOne();
+            const EARNING_PER_VIEW = settings?.payoutPerView || 0;
+
+            if (EARNING_PER_VIEW > 0) {
+                await User.findByIdAndUpdate(news.author, {
+                    $inc: { "earnings.currentBalance": EARNING_PER_VIEW, "earnings.totalEarned": EARNING_PER_VIEW }
+                });
+            }
+        }
+
+        if (req.user) {
+            await logActivity(req.user.id, "View", "News", id, `Viewed news: ${news.title}`);
         }
 
         res.status(200).json(news);
@@ -124,10 +132,17 @@ export const likeNews = async (req, res) => {
         const news = await News.findByIdAndUpdate(id, { $inc: { likes: 1 } }, { new: true });
 
         if (news && news.author && news.status === "Published") {
-            const EARNING_PER_LIKE = 0.5;
-            await User.findByIdAndUpdate(news.author, {
-                $inc: { "earnings.currentBalance": EARNING_PER_LIKE, "earnings.totalEarned": EARNING_PER_LIKE }
-            });
+            const settings = await Settings.findOne();
+            const EARNING_PER_LIKE = settings?.payoutPerLike || 0;
+
+            if (EARNING_PER_LIKE > 0) {
+                await User.findByIdAndUpdate(news.author, {
+                    $inc: { "earnings.currentBalance": EARNING_PER_LIKE, "earnings.totalEarned": EARNING_PER_LIKE }
+                });
+            }
+        }
+        if (req.user) {
+            await logActivity(req.user.id, "Like", "News", id, `Liked news: ${news.title}`);
         }
         res.status(200).json(news);
     } catch (error) {
@@ -140,6 +155,20 @@ export const shareNews = async (req, res) => {
     try {
         const { id } = req.params;
         const news = await News.findByIdAndUpdate(id, { $inc: { shares: 1 } }, { new: true });
+
+        if (news && news.author && news.status === "Published") {
+            const settings = await Settings.findOne();
+            const EARNING_PER_SHARE = settings?.payoutPerShare || 0;
+
+            if (EARNING_PER_SHARE > 0) {
+                await User.findByIdAndUpdate(news.author, {
+                    $inc: { "earnings.currentBalance": EARNING_PER_SHARE, "earnings.totalEarned": EARNING_PER_SHARE }
+                });
+            }
+        }
+        if (req.user) {
+            await logActivity(req.user.id, "Share", "News", id, `Shared news: ${news.title}`);
+        }
         res.status(200).json(news);
     } catch (error) {
         res.status(500).json({ message: "Server error" });

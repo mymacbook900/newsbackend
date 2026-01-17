@@ -1,7 +1,21 @@
 import Post from "../models/Post.js";
 import Community from "../models/Community.js";
+import { logActivity } from "./Activity.js";
 
 /* ================= POST INTERACTIONS ================= */
+
+export const deletePost = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const post = await Post.findByIdAndDelete(id);
+
+        if (!post) return res.status(404).json({ message: "Post not found" });
+        res.status(200).json({ message: "Post deleted successfully" });
+    } catch (error) {
+        console.error("Delete Post Error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
 
 export const likePost = async (req, res) => {
     try {
@@ -12,7 +26,9 @@ export const likePost = async (req, res) => {
             { new: true }
         );
 
-        if (!post) return res.status(404).json({ message: "Post not found" });
+        if (req.user) {
+            await logActivity(req.user.id, "Like", "Post", id, `Liked a post`);
+        }
         res.status(200).json(post);
     } catch (error) {
         res.status(500).json({ message: "Server error" });
@@ -38,6 +54,10 @@ export const commentOnPost = async (req, res) => {
         });
         await post.save();
 
+        if (userId) {
+            await logActivity(userId, "Comment", "Post", id, `Commented on a post: "${text.substring(0, 20)}..."`);
+        }
+
         res.status(200).json(post);
     } catch (error) {
         res.status(500).json({ message: "Server error" });
@@ -53,7 +73,9 @@ export const sharePost = async (req, res) => {
             { new: true }
         );
 
-        if (!post) return res.status(404).json({ message: "Post not found" });
+        if (req.user) {
+            await logActivity(req.user.id, "Share", "Post", id, `Shared a post`);
+        }
         res.status(200).json(post);
     } catch (error) {
         res.status(500).json({ message: "Server error" });
@@ -142,6 +164,23 @@ export const getFilteredPosts = async (req, res) => {
 
         res.status(200).json(posts);
     } catch (error) {
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const deleteComment = async (req, res) => {
+    try {
+        const { id, commentId } = req.params;
+        const post = await Post.findById(id);
+
+        if (!post) return res.status(404).json({ message: "Post not found" });
+
+        post.comments = post.comments.filter(c => c._id.toString() !== commentId);
+        await post.save();
+
+        res.status(200).json(post);
+    } catch (error) {
+        console.error("Delete Comment Error:", error);
         res.status(500).json({ message: "Server error" });
     }
 };

@@ -15,7 +15,9 @@ import {
     approveAuthorizedInvite,
     followCommunity,
     unfollowCommunity,
-    rejectJoinRequest
+    rejectJoinRequest,
+    updateCommunity,
+    removeMember
 } from "../controllers/Community.js";
 import {
     likePost,
@@ -23,9 +25,12 @@ import {
     sharePost,
     requestContactView,
     approveContactView,
-    getFilteredPosts
+    getFilteredPosts,
+    deletePost,
+    deleteComment
 } from "../controllers/Post.js";
 import { authenticate, authorizeAdmin } from "../middlewares/authMiddleware.js";
+import { upload } from "../middlewares/uploadMiddleware.js";
 
 const router = express.Router();
 
@@ -34,6 +39,7 @@ router.get("/", getAllCommunities);
 router.get("/:id", getCommunityById);
 
 router.post("/", createCommunity); // TEMPORARY: Made public for testing
+router.put("/:id", updateCommunity);
 router.delete("/:id", deleteCommunity); // TEMPORARY: Made public for testing
 
 // Email Verification (Single Creator)
@@ -52,9 +58,13 @@ router.delete('/:id/follow', unfollowCommunity); // TEMPORARY: Made public
 router.post("/:id/join", joinCommunity); // TEMPORARY: Made public
 router.post("/request/approve", approveJoinRequest); // TEMPORARY: Made public
 router.post('/request/reject', rejectJoinRequest); // TEMPORARY: Made public
+router.delete('/:id/members/:userId', removeMember);
 
 // Posts
-router.post("/posts", createPost); // TEMPORARY: Made public
+// Posts
+router.post("/posts", upload.single('image'), createPost); // TEMPORARY: Made public
+router.delete("/posts/:id", deletePost);
+
 router.get("/posts", getAllPosts); // Get all posts (global feed)
 router.get("/:communityId/posts", getCommunityPosts); // Get posts for specific community
 router.get('/:id/posts/filtered', getFilteredPosts); // TEMPORARY: Made public
@@ -62,6 +72,7 @@ router.get('/:id/posts/filtered', getFilteredPosts); // TEMPORARY: Made public
 // Post Interactions
 router.patch('/posts/:id/like', likePost); // TEMPORARY: Made public
 router.post('/posts/:id/comment', commentOnPost); // TEMPORARY: Made public
+router.delete('/posts/:id/comments/:commentId', deleteComment);
 router.patch('/posts/:id/share', sharePost); // TEMPORARY: Made public
 
 // Event Contact

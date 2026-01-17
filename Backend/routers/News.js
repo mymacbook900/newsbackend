@@ -15,12 +15,14 @@ const router = express.Router();
 // Public
 router.get("/", getAllNews);
 router.get("/:id", getNewsById);
-router.post("/", createNews); // TEMPORARY: Made public for testing
-router.patch("/:id/like", likeNews); // TEMPORARY: Made public for testing
-router.patch("/:id/share", shareNews); // TEMPORARY: Made public for testing
+
+// Protected (User/Reporter)
+router.post("/", authenticate, createNews);
+router.patch("/:id/like", authenticate, likeNews);
+router.patch("/:id/share", authenticate, shareNews);
 
 // Admin Only
-router.patch("/:id/status", updateNewsStatus); // TEMPORARY: Removed auth for testing
-router.delete("/:id", deleteNews); // TEMPORARY: Removed auth for testing
+router.patch("/:id/status", authenticate, authorizeAdmin, updateNewsStatus);
+router.delete("/:id", authenticate, authorizeAdmin, deleteNews);
 
 export default router;

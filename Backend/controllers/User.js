@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendEmail } from "../middlewares/nodeMailer.js";
-import ActivityLog from "../models/ActivityLog.js"; // Optional import if using direct log, or use controller helper if possible
+import { logActivity } from "./Activity.js";
 
 /* ================= REGISTER ================= */
 export const registerUser = async (req, res) => {
@@ -359,6 +359,9 @@ export const saveContent = async (req, res) => {
     } else {
       user.savedContent.push({ item: itemId, itemModel });
       await user.save();
+
+      await logActivity(userId, "Save", itemModel, itemId, `Saved ${itemModel}`);
+
       return res.status(200).json({ message: "Content saved", saved: true });
     }
   } catch (error) {
@@ -369,6 +372,7 @@ export const saveContent = async (req, res) => {
 export const getSavedContent = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log("Fetching saved content for User ID:", userId);
     const user = await User.findById(userId).populate('savedContent.item');
     res.status(200).json(user.savedContent);
   } catch (error) {

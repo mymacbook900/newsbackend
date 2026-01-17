@@ -7,10 +7,12 @@ export const authenticate = (req, res, next) => {
 
     try {
         const verified = jwt.verify(token.replace("Bearer ", ""), process.env.JWT_SECRET);
+        console.log("Auth Success: User ID:", verified.id);
         req.user = verified;
         next();
     } catch (error) {
-        res.status(400).json({ message: "Invalid Token" });
+        console.error("JWT Verification Error:", error.message);
+        res.status(401).json({ message: "Invalid or Expired Token" });
     }
 };
 

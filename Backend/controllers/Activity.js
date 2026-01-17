@@ -40,6 +40,7 @@ export const getUserLogs = async (req, res) => {
 export const getUserActivity = async (req, res) => {
     try {
         const userId = req.user.id;
+        console.log("Fetching activity for User ID:", userId);
         const logs = await ActivityLog.find({ user: userId })
             .sort({ timestamp: -1 })
             .populate('targetId', 'title name content') // works for News, Community, Post
@@ -57,8 +58,9 @@ export const getAllLogs = async (req, res) => {
     try {
         const logs = await ActivityLog.find()
             .populate('user', 'fullName email')
+            .populate('targetId', 'title name content')
             .sort({ timestamp: -1 })
-            .limit(50);
+            .limit(100);
         res.status(200).json(logs);
     } catch (error) {
         res.status(500).json({ message: error.message });

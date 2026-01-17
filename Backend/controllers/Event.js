@@ -1,9 +1,15 @@
 import Event from "../models/Event.js";
+import { logActivity } from "./Activity.js";
 
 export const createEvent = async (req, res) => {
     try {
         const event = new Event(req.body);
         await event.save();
+
+        if (req.user || req.body.organizerId) {
+            await logActivity(req.user?.id || req.body.organizerId, "Create", "Event", event._id, `Created event: ${event.title}`);
+        }
+
         res.status(201).json(event);
     } catch (error) {
         console.error("Create Event Error:", error);

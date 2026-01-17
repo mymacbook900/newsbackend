@@ -1,4 +1,5 @@
 import CaseStudy from "../models/CaseStudy.js";
+import { logActivity } from "./Activity.js";
 
 export const createCaseStudy = async (req, res) => {
     try {
@@ -29,6 +30,11 @@ export const getCaseStudyById = async (req, res) => {
         const { id } = req.params;
         const caseStudy = await CaseStudy.findById(id).populate("author", "fullName profilePicture");
         if (!caseStudy) return res.status(404).json({ message: "Case Study not found" });
+
+        if (req.user) {
+            await logActivity(req.user.id, "View", "CaseStudy", id, `Viewed case study: ${caseStudy.title}`);
+        }
+
         res.status(200).json(caseStudy);
     } catch (error) {
         console.error("Get Case Study By ID Error:", error);

@@ -1,6 +1,7 @@
 import Community from "../models/Community.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
+import { logActivity } from "./Activity.js";
 
 /* ================= COMMUNITY MANAGMENT ================= */
 
@@ -84,6 +85,29 @@ export const getCommunityById = async (req, res) => {
     }
 };
 
+export const updateCommunity = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, type, image, status } = req.body;
+
+        const community = await Community.findById(id);
+        if (!community) return res.status(404).json({ message: "Community not found" });
+
+        // Update fields if provided
+        if (name) community.name = name;
+        if (description) community.description = description;
+        if (type) community.type = type;
+        if (image) community.image = image;
+        if (status) community.status = status;
+
+        await community.save();
+        res.status(200).json(community);
+    } catch (error) {
+        console.error("Update Community Error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 export const deleteCommunity = async (req, res) => {
     try {
         const { id } = req.params;
@@ -124,6 +148,10 @@ export const joinCommunity = async (req, res) => {
         community.joinRequests.push(userId);
         await community.save();
 
+        if (req.user) {
+            await logActivity(req.user.id, "Join", "Community", id, `Sent join request to: ${community.name}`);
+        }
+
         res.status(200).json({ message: "Join request sent" });
     } catch (error) {
         console.error("Get Community Posts Error:", error);
@@ -159,6 +187,34 @@ export const approveJoinRequest = async (req, res) => {
         res.status(200).json({ message: "User approved" });
     } catch (error) {
         console.error("Get Community Posts Error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+export const removeMember = async (req, res) => {
+    try {
+        const { id, userId } = req.params; // Community ID and User ID to remove
+
+        const community = await Community.findById(id);
+        if (!community) return res.status(404).json({ message: "Community not found" });
+
+        // Remove from members list
+        if (community.members.includes(userId)) {
+            community.members = community.members.filter(m => m.toString() !== userId);
+            community.membersCount = Math.max(0, community.membersCount - 1);
+            await community.save();
+
+            // Update User
+            await User.findByIdAndUpdate(userId, {
+                $pull: { joinedCommunities: id }
+            });
+
+            return res.status(200).json({ message: "Member removed successfully" });
+        } else {
+            return res.status(400).json({ message: "User is not a member" });
+        }
+    } catch (error) {
+        console.error("Remove Member Error:", error);
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
@@ -202,7 +258,7 @@ export const createPost = async (req, res) => {
             community: communityId,
             content,
             type: type || "Public", // Public, Member, Event
-            image,
+            image: req.file ? `/uploads/${req.file.filename}` : image,
             eventDetails: (type === 'Event' && eventData) ? eventData : undefined
         });
 
@@ -211,6 +267,11 @@ export const createPost = async (req, res) => {
         }
 
         await newPost.save();
+
+        if (authorId) {
+            await logActivity(authorId, "Create", "Post", newPost._id, `Created a new post in: ${community.name}`);
+        }
+
         console.log("Post Created Successfully:", newPost._id);
         res.status(201).json(newPost);
     } catch (error) {
@@ -310,8 +371,6 @@ export const inviteAuthorizedPerson = async (req, res) => {
         }
 
         const community = await Community.findById(id);
-
-        if (!community) return res.status(404).json({ message: "Community not found" });
         if (!community) return res.status(404).json({ message: "Community not found" });
 
         // Auth Check fallback
@@ -320,34 +379,56 @@ export const inviteAuthorizedPerson = async (req, res) => {
             return res.status(403).json({ message: "Only creator can invite" });
         }
 
-        // Find user by email
+        // Find user by email (Optional)
         const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: "User not found" });
 
-        // Check if already invited or authorized
-        const alreadyInvited = community.pendingAuthorizedPersons.some(p => p.userId.toString() === user._id.toString());
-        const alreadyAuthorized = community.authorizedPersons.includes(user._id);
+        // Check if already invited or authorized (if user exists)
+        if (user) {
+            const alreadyAuthorized = community.authorizedPersons.includes(user._id);
+            if (alreadyAuthorized) {
+                return res.status(400).json({ message: "User already authorized" });
+            }
 
-        if (alreadyInvited || alreadyAuthorized) {
-            return res.status(400).json({ message: "User already invited or authorized" });
+            const pendingIndex = community.pendingAuthorizedPersons.findIndex(p => p.userId?.toString() === user._id.toString());
+
+            if (pendingIndex !== -1) {
+                // Update existing invitation (Resend OTP)
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+                community.pendingAuthorizedPersons[pendingIndex].otp = otp;
+                community.pendingAuthorizedPersons[pendingIndex].otpExpires = otpExpires;
+                await community.save();
+                return res.status(200).json({ message: "OTP resent successfully", otp });
+            }
+        } else {
+            // Check by email for non-registered users
+            const pendingIndex = community.pendingAuthorizedPersons.findIndex(p => p.email === email);
+            if (pendingIndex !== -1) {
+                // Update existing invitation (Resend OTP)
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+                community.pendingAuthorizedPersons[pendingIndex].otp = otp;
+                community.pendingAuthorizedPersons[pendingIndex].otpExpires = otpExpires;
+                await community.save();
+                return res.status(200).json({ message: "OTP resent successfully", otp });
+            }
         }
 
-        // Generate OTP
+        // Generate OTP for new invitation
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
         community.pendingAuthorizedPersons.push({
-            userId: user._id,
+            userId: user ? user._id : undefined,
             email,
             otp,
             otpExpires
         });
         await community.save();
 
-        // Send email
-        // await sendEmail(email, "Community Authorization Invite", `Your OTP is: ${otp}`);
-
-        res.status(200).json({ message: "Invitation sent", otp }); // Remove otp in production
+        res.status(200).json({ message: "Invitation sent successfully", otp }); // Remove otp in production
     } catch (error) {
         console.error("Invite Authorized Person Error:", error);
         res.status(500).json({ message: "Server error" });
@@ -422,6 +503,12 @@ export const followCommunity = async (req, res) => {
         await User.findByIdAndUpdate(userId, {
             $push: { followingCommunities: id }
         });
+
+        await user.save(); // Not strictly necessary if only one update, but follows pattern
+
+        if (req.user) {
+            await logActivity(req.user.id, "Follow", "Community", id, `Followed community: ${community.name}`);
+        }
 
         res.status(200).json({ message: "Followed successfully" });
     } catch (error) {
