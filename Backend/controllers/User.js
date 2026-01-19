@@ -5,10 +5,11 @@ import crypto from "crypto";
 import { sendEmail } from "../middlewares/nodeMailer.js";
 import { logActivity } from "./Activity.js";
 
-/* ================= REGISTER ================= */
+
+/* ================= REGISTER (UPDATED) ================= */
 export const registerUser = async (req, res) => {
   try {
-    const { email, password, ...rest } = req.body;
+    const { email, password, role = 'User', ...rest } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
@@ -19,17 +20,14 @@ export const registerUser = async (req, res) => {
     const newUser = new User({
       email,
       password: hashedPassword,
-      ...rest // rest includes profilePicture, phone, address etc.
+      role,
+      ...rest
     });
 
     await newUser.save();
-    res.status(201).json({ message: "User registered successfully" });
+    res.status(201).json({ message: "User registered successfully", customId: newUser.customId });
   } catch (error) {
     console.error("Register Error:", error);
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(val => val.message);
-      return res.status(400).json({ message: messages.join(', ') });
-    }
     res.status(500).json({ message: "Server error" });
   }
 };

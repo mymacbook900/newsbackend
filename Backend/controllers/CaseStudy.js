@@ -4,7 +4,7 @@ import { logActivity } from "./Activity.js";
 export const createCaseStudy = async (req, res) => {
     try {
         const { title, content, image, author } = req.body;
-        console.log(req.body);
+        // console.log(req.body);
 
         const caseStudy = new CaseStudy({ title, content, image, author });
         await caseStudy.save();

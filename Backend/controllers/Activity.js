@@ -40,7 +40,7 @@ export const getUserLogs = async (req, res) => {
 export const getUserActivity = async (req, res) => {
     try {
         const userId = req.user.id;
-        console.log("Fetching activity for User ID:", userId);
+        // console.log("Fetching activity for User ID:", userId);
         const logs = await ActivityLog.find({ user: userId })
             .sort({ timestamp: -1 })
             .populate('targetId', 'title name content') // works for News, Community, Post

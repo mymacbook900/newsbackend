@@ -118,3 +118,167 @@ export const getReportsAnalytics = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const getUserAnalytics = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await User.findById(id).populate('joinedCommunities').populate('followingCommunities');
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // 1. User Engagement (Actions by this user)
+        const userActivity = await ActivityLog.aggregate([
+            { $match: { user: user._id } },
+            {
+                $group: {
+                    _id: "$action",
+                    count: { $sum: 1 },
+                    totalDuration: { $sum: "$duration" }
+                }
+            }
+        ]);
+
+        const engagementData = {
+            View: 0, Like: 0, Share: 0, Comment: 0, Save: 0, Search: 0, totalTimeSpent: 0
+        };
+        userActivity.forEach(item => {
+            if (engagementData.hasOwnProperty(item._id)) {
+                engagementData[item._id] = item.count;
+            }
+            if (item._id === 'View') {
+                engagementData.totalTimeSpent = item.totalDuration;
+            }
+        });
+
+        // 2. Category-wise Reading (Top categories viewed)
+        const categoryStats = await ActivityLog.aggregate([
+            { $match: { user: user._id, action: "View", targetModel: "News" } },
+            {
+                $lookup: {
+                    from: "news",
+                    localField: "targetId",
+                    foreignField: "_id",
+                    as: "newsItem"
+                }
+            },
+            { $unwind: "$newsItem" },
+            {
+                $group: {
+                    _id: "$newsItem.category",
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } }
+        ]);
+
+        const formattedCategoryStats = categoryStats.map(c => ({ category: c._id, count: c.count }));
+
+        // 3. Reaction Breakdown
+        const reactionStats = await ActivityLog.aggregate([
+            { $match: { user: user._id, action: "Like" } },
+            {
+                $group: {
+                    _id: "$reactionType",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+        const formattedReactions = reactionStats.map(r => ({ type: r._id || 'Like', count: r.count }));
+
+        // 4. Search History
+        const searchHistory = await ActivityLog.find({ user: user._id, action: "Search" })
+            .sort({ timestamp: -1 })
+            .limit(10)
+            .select("details timestamp");
+
+        // 5. Author Performance (Only if user is a Reporter)
+        let authorPerformance = null;
+        let reporterStats = null;
+
+        const authoredNews = await News.find({ author: user._id });
+        if (authoredNews.length > 0 || user.role === 'Reporter') {
+            const newsIds = authoredNews.map(n => n._id);
+
+            // Reporter Stats (By status)
+            const stats = await News.aggregate([
+                { $match: { author: user._id } },
+                {
+                    $group: {
+                        _id: "$status",
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            reporterStats = {
+                Total: authoredNews.length,
+                Published: 0,
+                Pending: 0,
+                Rejected: 0
+            };
+            stats.forEach(s => {
+                if (reporterStats.hasOwnProperty(s._id)) {
+                    reporterStats[s._id] = s.count;
+                }
+            });
+
+            // Author Engagement (Actions on News authored by this user)
+            const authorEngagement = await ActivityLog.aggregate([
+                { $match: { targetId: { $in: newsIds }, targetModel: 'News', user: { $ne: user._id } } },
+                {
+                    $group: {
+                        _id: "$action",
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            authorPerformance = {
+                Views: 0, Likes: 0, Shares: 0, Comments: 0,
+                authoredNewsDetails: []
+            };
+
+            const commentStats = await ActivityLog.aggregate([
+                { $match: { targetId: { $in: newsIds }, targetModel: 'News', action: 'Comment' } },
+                { $group: { _id: "$targetId", count: { $sum: 1 } } }
+            ]);
+
+            const commentMap = {};
+            commentStats.forEach(c => commentMap[c._id.toString()] = c.count);
+
+            authorPerformance.authoredNewsDetails = authoredNews.map(n => ({
+                id: n._id,
+                title: n.title,
+                category: n.category,
+                status: n.status,
+                views: n.views || 0,
+                likes: n.likes || 0,
+                shares: n.shares || 0,
+                comments: commentMap[n._id.toString()] || 0,
+                createdAt: n.createdAt
+            }));
+
+            authorEngagement.forEach(item => {
+                if (item._id === 'View') authorPerformance.Views = item.count;
+                if (item._id === 'Like') authorPerformance.Likes = item.count;
+                if (item._id === 'Share') authorPerformance.Shares = item.count;
+                if (item._id === 'Comment') authorPerformance.Comments = item.count;
+            });
+        }
+
+        res.status(200).json({
+            user,
+            engagement: engagementData,
+            categoryStats: formattedCategoryStats,
+            reactionStats: formattedReactions,
+            searchHistory,
+            reporterStats,
+            authorPerformance
+        });
+    } catch (error) {
+        console.error("Get User Analytics Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+

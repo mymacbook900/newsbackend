@@ -9,7 +9,7 @@ const activityLogSchema = new mongoose.Schema({
     action: {
         type: String,
         required: true,
-        enum: ["View", "Like", "Share", "Comment", "Save", "Create", "Update", "Delete", "Join", "Follow"]
+        enum: ["View", "Like", "Share", "Comment", "Save", "Create", "Update", "Delete", "Join", "Follow", "Search"]
     },
     targetModel: {
         type: String,
@@ -24,6 +24,14 @@ const activityLogSchema = new mongoose.Schema({
     details: {
         type: String, // Optional description
         default: ""
+    },
+    reactionType: {
+        type: String, // Like, Love, Angry, etc.
+        default: ""
+    },
+    duration: {
+        type: Number, // Time spent in seconds
+        default: 0
     },
     timestamp: {
         type: Date,
