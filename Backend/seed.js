@@ -17,7 +17,7 @@ const seedData = async () => {
         console.log("Connected to MongoDB for seeding...");
 
         // Clear existing data
-        await User.deleteMany({ role: { $ne: 'Admin' } }); // Keep admins if any
+        await User.deleteMany({ role: { $ne: 'Admin' } }); // Keep admins for login
         await News.deleteMany({});
         await Community.deleteMany({});
         await Post.deleteMany({});
@@ -27,7 +27,7 @@ const seedData = async () => {
 
         const hashedPassword = await bcrypt.hash('Password123!', 10);
 
-        // 1. Users & Reporters
+        // =================USERS=================
         const dbUsers = await User.insertMany([
             {
                 customId: 'REP-0001',
@@ -44,8 +44,7 @@ const seedData = async () => {
                 preferredLanguage: 'English',
                 themePreference: 'dark',
                 lastLogin: new Date(),
-                loginCount: 45,
-                notificationPreferences: { breakingNews: true, categoryNotifications: true }
+                loginCount: 45
             },
             {
                 customId: 'REP-0002',
@@ -59,10 +58,7 @@ const seedData = async () => {
                 address: 'New York, NY',
                 position: 'Freelance Journalist',
                 interests: ['Technology', 'Gadgets'],
-                preferredLanguage: 'Hindi',
-                themePreference: 'light',
-                failedLoginAttempts: 2,
-                passwordResetHistory: [new Date('2026-01-10'), new Date('2026-01-15')]
+                preferredLanguage: 'Hindi'
             },
             {
                 fullName: 'Alice Johnson',
@@ -73,220 +69,207 @@ const seedData = async () => {
                 address: 'Chicago, IL',
                 interests: ['Local', 'Sports'],
                 lastLogin: new Date(Date.now() - 86400000),
-                loginCount: 12,
-                joinedCommunities: [],
-                followingCommunities: []
+                loginCount: 12
+            },
+            {
+                fullName: 'Bob Smith',
+                email: 'bob@user.com',
+                password: hashedPassword,
+                role: 'User',
+                status: 'Active',
+                address: 'Miami, FL',
+                interests: ['Business', 'Health'],
+                loginCount: 5
             }
         ]);
 
         const sarahId = dbUsers[0]._id;
         const aliceId = dbUsers[2]._id;
+        const bobId = dbUsers[3]._id;
 
         console.log("Users seeded.");
 
-        // 2. News
+        // =================NEWS=================
+        // Spread dates over the last 10 days for "Traffic Trends"
+        const dates = Array.from({ length: 10 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            return d;
+        });
+
         const dbNews = await News.insertMany([
             {
                 title: 'New Community Library Opens',
-                content: 'The city has officially opened its largest library wing to date, offering over 50,000 new books.',
+                content: 'The city has officially opened its largest library wing to date.',
                 author: sarahId,
                 category: 'Local',
                 status: 'Published',
                 views: 1250,
                 likes: 450,
-                shares: 120
+                shares: 120,
+                date: dates[0] // Today
             },
             {
                 title: 'Tech Merger Shakes Market',
-                content: 'Two of the biggest tech giants have announced a surprise merger, causing stock prices to soar.',
+                content: 'Two of the biggest tech giants have announced a surprise merger.',
                 author: sarahId,
                 category: 'Business',
-                status: 'Pending',
+                status: 'Pending', // Pending item
                 views: 0,
                 likes: 0,
-                shares: 0
+                shares: 0,
+                date: dates[1]
             },
             {
                 title: 'Local Sports Final Tonight',
-                content: 'The regional football finals are set to kick off tonight at 8 PM at the City Stadium.',
+                content: 'The regional football finals are set to kick off tonight.',
                 author: sarahId,
                 category: 'Sports',
                 status: 'Published',
                 views: 3400,
                 likes: 890,
-                shares: 450
+                shares: 450,
+                date: dates[2]
             },
             {
-                title: 'Rejected News Item',
-                content: 'This draft was rejected by moderation.',
+                title: 'Healthy Living Workshop',
+                content: 'Learn how to eat better and live longer.',
+                author: sarahId,
+                category: 'Health',
+                status: 'Published',
+                views: 500,
+                likes: 120,
+                shares: 30,
+                date: dates[4]
+            },
+            {
+                title: 'Election Results Announced',
+                content: 'The final count is in for the local council elections.',
+                author: sarahId,
+                category: 'Politics',
+                status: 'Published',
+                views: 5000,
+                likes: 1200,
+                shares: 800,
+                date: dates[6]
+            },
+            {
+                title: 'Rejected Draft',
+                content: 'This was not good enough.',
                 author: sarahId,
                 category: 'Lifestyle',
                 status: 'Rejected',
-                views: 12,
-                likes: 1,
-                shares: 0
-            },
-            {
-                title: 'Pending Scoop',
-                content: 'Something big is coming...',
-                author: sarahId,
-                category: 'Technology',
-                status: 'Pending',
-                views: 0,
-                likes: 0,
-                shares: 0
+                views: 10,
+                date: dates[8]
             }
         ]);
 
         console.log("News seeded.");
 
-        // 3. Activity Logs (Real interaction data)
-        await ActivityLog.insertMany([
-            // Alice viewing Sarah's news
-            { user: aliceId, action: 'View', targetModel: 'News', targetId: dbNews[0]._id, details: 'Viewed Community Library news', duration: 120 },
-            { user: aliceId, action: 'View', targetModel: 'News', targetId: dbNews[2]._id, details: 'Viewed Local Sports news', duration: 300 },
-
-            // Alice liking and sharing Sarah's news
-            { user: aliceId, action: 'Like', targetModel: 'News', targetId: dbNews[0]._id, details: 'Liked Library update', reactionType: 'Love' },
-            { user: aliceId, action: 'Like', targetModel: 'News', targetId: dbNews[2]._id, details: 'Liked Sports final', reactionType: 'Love' },
-            { user: aliceId, action: 'Share', targetModel: 'News', targetId: dbNews[0]._id, details: 'Shared to Facebook' },
-
-            // Alice search behavior
-            { user: aliceId, action: 'Search', targetModel: 'News', targetId: aliceId, details: 'latest technology news' },
-            { user: aliceId, action: 'Search', targetModel: 'News', targetId: aliceId, details: 'farmers market timing' },
-
-            // Alice commenting on Sarah's news
-            { user: aliceId, action: 'Comment', targetModel: 'News', targetId: dbNews[0]._id, details: 'Great initiative! We need more books.' },
-            { user: aliceId, action: 'Comment', targetModel: 'News', targetId: dbNews[2]._id, details: 'Excited for the game tonight!' },
-
-            // Sarah viewing her own news
-            { user: sarahId, action: 'View', targetModel: 'News', targetId: dbNews[0]._id, details: 'Author checking own post', duration: 45 }
-        ]);
-
-        console.log("Activity logs seeded.");
-
-        // 4. Communities
+        // =================COMMUNITIES=================
         const communities = await Community.insertMany([
             {
                 name: 'Tech Enthusiasts',
-                description: 'A place for everyone who loves gadgets and coding.',
+                description: 'Coding and Gadgets.',
                 type: 'Single',
                 creator: sarahId,
                 status: 'Active',
-                membersCount: 1250
+                membersCount: 125,
+                members: [sarahId, aliceId, bobId]
             },
             {
-                name: 'Local Farmers Market',
-                description: 'Connecting local growers with the community.',
+                name: 'Local Farmers',
+                description: 'Fresh produce news.',
                 type: 'Single',
                 creator: aliceId,
                 status: 'Active',
-                membersCount: 340
-            },
-            {
-                name: 'Press Circle',
-                description: 'Private community for verified journalists.',
-                type: 'Multi',
-                creator: sarahId,
-                status: 'Active',
-                membersCount: 45
+                membersCount: 340,
+                members: [aliceId, bobId]
             }
         ]);
 
         console.log("Communities seeded.");
 
-        // 5. Posts
-        await Post.insertMany([
-            {
-                author: sarahId,
-                authorName: 'Sarah Connor',
-                community: communities[0]._id, // Use ObjectId from seeded communities
-                content: 'Just tried the new M3 chip, it is incredibly fast!',
-                type: 'Public',
-                likes: 45,
-                comments: [
-                    { user: aliceId, userName: 'Alice Johnson', text: 'Looks promising!' }
-                ] // Change from number to array of objects
-            },
-            {
-                author: aliceId,
-                authorName: 'Alice Johnson',
-                community: communities[1]._id, // Use ObjectId from seeded communities
-                content: 'The organic apples are hitting the stalls tomorrow morning!',
-                type: 'Public',
-                likes: 23,
-                comments: [
-                    { user: sarahId, userName: 'Sarah Connor', text: 'Great! I will visit.' }
-                ] // Change from number to array of objects
-            }
-        ]);
+        // =================ACTIVITY LOGS=================
+        // Bulk create logs for "Engagement Trends" (Views/Likes over time)
+        const logs = [];
 
-        console.log("Posts seeded.");
+        // Generate logs for the last 10 days to cover different timeframes
+        const targetNews = dbNews; // Use all seeded news
 
-        // 6. Events
-        await Event.insertMany([
-            {
-                title: 'Annual Tech Meetup',
-                organizer: 'Tech Enthusiasts',
-                date: new Date('2026-02-15'),
-                location: 'Convention Center',
-                category: 'Meeting',
-                status: 'Upcoming',
-                type: 'Community'
-            },
-            {
-                title: 'Press Freedom Forum',
-                organizer: 'Sarah Connor',
-                date: new Date('2026-03-10'),
-                location: 'Grand Hall',
-                category: 'Workshop',
-                status: 'Upcoming',
-                type: 'Reporter'
-            },
-            {
-                title: 'Grand Bhandara',
-                organizer: 'Local Community',
-                date: new Date('2026-01-20'),
-                location: 'City Temple',
-                category: 'Cultural',
-                status: 'Upcoming',
-                type: 'Community'
-            }
-        ]);
+        for (let i = 0; i < 10; i++) {
+            const day = new Date();
+            day.setDate(day.getDate() - i);
 
-        console.log("Events seeded.");
+            // For each news item, generate random interactions for this day
+            targetNews.forEach(newsItem => {
+                // 1. Views (High volume)
+                const viewsCount = Math.floor(Math.random() * 50) + 20;
+                for (let v = 0; v < viewsCount; v++) {
+                    logs.push({
+                        user: dbUsers[Math.floor(Math.random() * dbUsers.length)]._id, // Random user
+                        action: 'View',
+                        targetModel: 'News',
+                        targetId: newsItem._id,
+                        timestamp: day,
+                        duration: Math.floor(Math.random() * 300)
+                    });
+                }
 
-        // 7. Moderation Reports
+                // 2. Likes (Medium volume)
+                const likesCount = Math.floor(Math.random() * 25) + 5;
+                for (let l = 0; l < likesCount; l++) {
+                    logs.push({
+                        user: dbUsers[Math.floor(Math.random() * dbUsers.length)]._id,
+                        action: 'Like',
+                        targetModel: 'News',
+                        targetId: newsItem._id,
+                        timestamp: day,
+                        reactionType: 'Love'
+                    });
+                }
+
+                // 3. Comments (Low volume)
+                const commentsCount = Math.floor(Math.random() * 10) + 1;
+                for (let c = 0; c < commentsCount; c++) {
+                    logs.push({
+                        user: dbUsers[Math.floor(Math.random() * dbUsers.length)]._id,
+                        action: 'Comment',
+                        targetModel: 'News',
+                        targetId: newsItem._id,
+                        timestamp: day,
+                        details: "Great article!"
+                    });
+                }
+
+                // 4. Shares (Low volume)
+                const sharesCount = Math.floor(Math.random() * 8) + 0;
+                for (let s = 0; s < sharesCount; s++) {
+                    logs.push({
+                        user: dbUsers[Math.floor(Math.random() * dbUsers.length)]._id,
+                        action: 'Share',
+                        targetModel: 'News',
+                        targetId: newsItem._id,
+                        timestamp: day
+                    });
+                }
+            });
+        }
+
+        await ActivityLog.insertMany(logs);
+        console.log(`Activity Logs seeded: ${logs.length} entries.`);
+
+        // =================MODERATION=================
         await ModerationReport.insertMany([
             {
                 type: 'Spam',
-                targetContent: 'Comment #1234: Buy cheap watches now!',
-                reporter: 'alice_unfiltered',
+                targetContent: 'Fake news comment',
+                reporter: 'alice@user.com',
                 status: 'Pending',
                 severity: 'Low'
-            },
-            {
-                type: 'Harassment',
-                targetContent: 'User: Trolls_R_Us',
-                reporter: 'bob_the_builder',
-                status: 'Investigating',
-                severity: 'High'
             }
         ]);
 
-        console.log("Moderation reports seeded.");
-
-        // 8. Update users with seeded community IDs
-        await User.findByIdAndUpdate(sarahId, {
-            joinedCommunities: [communities[0]._id, communities[2]._id],
-            followingCommunities: [communities[1]._id]
-        });
-        await User.findByIdAndUpdate(aliceId, {
-            joinedCommunities: [communities[1]._id],
-            followingCommunities: [communities[0]._id, communities[2]._id]
-        });
-
-        console.log("User Community relationships updated.");
         console.log("Seeding completed successfully!");
         process.exit();
     } catch (error) {

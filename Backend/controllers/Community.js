@@ -444,8 +444,13 @@ export const approveAuthorizedInvite = async (req, res) => {
         if (!community) return res.status(404).json({ message: "Community not found" });
 
         // Find pending invitation
+        // Find pending invitation (Check by OTP which should be unique enough within community, or combined with ID)
         const invitation = community.pendingAuthorizedPersons.find(
-            p => p.userId.toString() === actualUserId && p.otp === otp
+            p => p.otp === otp && (  // Match OTP
+                (userId && p.userId?.toString() === userId) || // Match UserID if provided
+                (req.user?.id && p.userId?.toString() === req.user.id) || // Match Requester ID
+                (!p.userId) // Or match if invite has no user ID (email only)
+            )
         );
 
         if (!invitation) {
@@ -455,10 +460,20 @@ export const approveAuthorizedInvite = async (req, res) => {
             return res.status(400).json({ message: "OTP expired" });
         }
 
+        // Determine the ID to add (User ID from invite or passed ID)
+        const userToAdd = invitation.userId || (userId ? userId : req.user?.id);
+
+        if (!userToAdd) {
+            return res.status(400).json({ message: "No valid User ID associated with this invitation. Ensure user is registered." });
+        }
+
         // Move to authorized persons
-        community.authorizedPersons.push(actualUserId);
+        if (!community.authorizedPersons.includes(userToAdd)) {
+            community.authorizedPersons.push(userToAdd);
+        }
+
         community.pendingAuthorizedPersons = community.pendingAuthorizedPersons.filter(
-            p => p.userId.toString() !== actualUserId
+            p => p._id.toString() !== invitation._id.toString()
         );
         community.approvalCount += 1;
 

@@ -1,7 +1,7 @@
 import ActivityLog from '../models/ActivityLog.js';
 import User from '../models/User.js';
 import News from '../models/News.js';
-import ModerationReport from '../models/ModerationReport.js';
+import Community from '../models/Community.js';
 import CaseStudy from '../models/CaseStudy.js';
 
 /* ================= LOG ACTIVITY ================= */
@@ -73,7 +73,7 @@ export const getDashboardStats = async (req, res) => {
         const totalNews = await News.countDocuments();
         const pendingNewsCount = await News.countDocuments({ status: 'Pending' });
         const publishedNews = await News.countDocuments({ status: 'Published' });
-        const reportedNews = await ModerationReport.countDocuments({ status: 'Pending' });
+        const communityCount = await Community.countDocuments();
         const totalUsers = await User.countDocuments();
         const reporters = await User.countDocuments({ role: 'Reporter' });
         const totalCaseStudies = await CaseStudy.countDocuments();
@@ -86,7 +86,7 @@ export const getDashboardStats = async (req, res) => {
                 { label: 'Total News', value: totalNews, change: '+0%', icon: 'Newspaper', bg: 'bg-blue-100', color: 'text-blue-600' },
                 { label: 'Pending News', value: pendingNewsCount, change: '+0', icon: 'Clock', bg: 'bg-orange-100', color: 'text-orange-600' },
                 { label: 'Published News', value: publishedNews, change: '+0', icon: 'CheckCircle2', bg: 'bg-green-100', color: 'text-green-600' },
-                { label: 'Reported News', value: reportedNews, change: '+0', icon: 'AlertCircle', bg: 'bg-red-100', color: 'text-red-600' },
+                { label: 'Communities', value: communityCount, change: '+0', icon: 'Users', bg: 'bg-red-100', color: 'text-red-600' },
                 { label: 'Total Users', value: totalUsers, change: '+0%', icon: 'Users', bg: 'bg-blue-100', color: 'text-blue-600' },
                 { label: 'Reporters', value: reporters, change: '+0', icon: 'UserCheck', bg: 'bg-purple-100', color: 'text-purple-600' },
                 { label: 'Case Studies', value: totalCaseStudies, change: '+0', icon: 'BookOpen', bg: 'bg-indigo-100', color: 'text-indigo-600' }

@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Community from '../models/Community.js';
 import Post from '../models/Post.js';
 import ActivityLog from '../models/ActivityLog.js';
+import mongoose from 'mongoose';
 
 export const getDashboardAnalytics = async (req, res) => {
     try {
@@ -282,3 +283,59 @@ export const getUserAnalytics = async (req, res) => {
     }
 };
 
+
+export const getNewsAnalytics = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const dailyStats = await ActivityLog.aggregate([
+            {
+                $match: {
+                    targetId: new mongoose.Types.ObjectId(id),
+                    timestamp: { $gte: sevenDaysAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+                    views: { $sum: { $cond: [{ $eq: ["$action", "View"] }, 1, 0] } },
+                    likes: { $sum: { $cond: [{ $eq: ["$action", "Like"] }, 1, 0] } },
+                    shares: { $sum: { $cond: [{ $eq: ["$action", "Share"] }, 1, 0] } },
+                    comments: { $sum: { $cond: [{ $eq: ["$action", "Comment"] }, 1, 0] } },
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        // Generate last 7 days array to ensure continuous graph
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            last7Days.push(d.toISOString().split('T')[0]);
+        }
+
+        const statsMap = {};
+        dailyStats.forEach(s => {
+            statsMap[s._id] = s;
+        });
+
+        const formattedStats = last7Days.map(date => {
+            const dayData = statsMap[date] || { views: 0, likes: 0, shares: 0, comments: 0 };
+            return {
+                name: date,
+                views: dayData.views || 0,
+                likes: dayData.likes || 0,
+                shares: dayData.shares || 0,
+                comments: dayData.comments || 0
+            };
+        });
+
+        res.status(200).json(formattedStats);
+    } catch (error) {
+        console.error("Get News Analytics Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
