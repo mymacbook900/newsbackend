@@ -1,4 +1,5 @@
 import express from 'express';
+import { upload } from '../middlewares/uploadMiddleware.js';
 import {
     deleteUser,
     registerUser,
@@ -36,7 +37,11 @@ router.get('/:id', getUserById); // Can be public profile or protected
 router.put('/:id', updateUser); // TEMPORARY: Made public for testing
 router.put('/verify-reporter/:id', verifyReporter); // TEMPORARY: Made public for testing
 router.put('/status/:id', updateUserStatus); // TEMPORARY: Made public for testing
-router.post('/apply-reporter', applyForReporter); // TEMPORARY: Made public for testing
+router.post(
+  "/apply-reporter",
+  authenticate,   // IMPORTANT
+  applyForReporter
+); // TEMPORARY: Made public for testing
 
 // Admin
 router.delete('/:id', authenticate, authorizeAdmin, deleteUser);

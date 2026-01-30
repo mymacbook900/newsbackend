@@ -10,7 +10,7 @@ const communitySchema = new mongoose.Schema(
         },
         description: { type: String, default: "" },
         image: { type: String, default: "" }, // Banner/Logo
-
+        Categories: [{ type: String }], // Community Topics
         type: {
             type: String,
             enum: ["Single", "Multi"], // Single Creator vs Multi-User

@@ -1,46 +1,53 @@
 import express from "express";
 import {
-    createCommunity,
-    getAllCommunities,
-    getCommunityById,
-    deleteCommunity,
-    createPost,
-    getAllPosts,
-    getCommunityPosts,
-    joinCommunity,
-    approveJoinRequest,
-    sendEmailVerification,
-    verifyDomainEmail,
-    inviteAuthorizedPerson,
-    approveAuthorizedInvite,
-    followCommunity,
-    unfollowCommunity,
-    rejectJoinRequest,
-    updateCommunity,
-    removeMember
+  createCommunity,
+  getAllCommunities,
+  getCommunityById,
+  deleteCommunity,
+  createPost,
+  getAllPosts,
+  getCommunityPosts,
+  joinCommunity,
+  approveJoinRequest,
+  sendEmailVerification,
+  verifyDomainEmail,
+  inviteAuthorizedPerson,
+  approveAuthorizedInvite,
+  followCommunity,
+  unfollowCommunity,
+  rejectJoinRequest,
+  updateCommunity,
+  removeMember,
+  getMyAuthorizedCommunities,
+  verifyAuthorizedOTP
 } from "../controllers/Community.js";
 import {
-    likePost,
-    commentOnPost,
-    sharePost,
-    requestContactView,
-    approveContactView,
-    getFilteredPosts,
-    deletePost,
-    deleteComment
+  likePost,
+  commentOnPost,
+  sharePost,
+  requestContactView,
+  approveContactView,
+  getFilteredPosts,
+  deletePost,
+  deleteComment
 } from "../controllers/Post.js";
-import { authenticate, authorizeAdmin } from "../middlewares/authMiddleware.js";
+import { authenticate, authorizeAdmin, canPostInCommunity, protect } from "../middlewares/authMiddleware.js";
 import { upload } from "../middlewares/uploadMiddleware.js";
 
 const router = express.Router();
 
 // Communities
-router.get("/", getAllCommunities);
+router.get("/", protect, getAllCommunities);
 router.get("/:id", getCommunityById);
 
-router.post("/", createCommunity); // TEMPORARY: Made public for testing
+router.post("/", protect, createCommunity); // TEMPORARY: Made public for testing
 router.put("/:id", updateCommunity);
 router.delete("/:id", deleteCommunity); // TEMPORARY: Made public for testing
+router.post(
+  "/authorized/verify",
+  protect,
+  verifyAuthorizedOTP
+);
 
 // Email Verification (Single Creator)
 router.post('/verify-email/send', sendEmailVerification); // TEMPORARY: Made public
@@ -52,7 +59,7 @@ router.post('/authorized/approve', approveAuthorizedInvite); // TEMPORARY: Made 
 
 // Follow/Unfollow
 router.post('/:id/follow', followCommunity); // TEMPORARY: Made public
-router.delete('/:id/follow', unfollowCommunity); // TEMPORARY: Made public
+router.delete('/:id/unfollow', unfollowCommunity); // TEMPORARY: Made public
 
 // Join Requests
 router.post("/:id/join", joinCommunity); // TEMPORARY: Made public
@@ -61,8 +68,15 @@ router.post('/request/reject', rejectJoinRequest); // TEMPORARY: Made public
 router.delete('/:id/members/:userId', removeMember);
 
 // Posts
-// Posts
-router.post("/posts", upload.single('image'), createPost); // TEMPORARY: Made public
+router.post(
+  "/posts",
+  protect,
+  upload.single("image"),
+  canPostInCommunity,
+  createPost
+);
+// TEMPORARY: Made public
+router.get("/my/authorized", protect, getMyAuthorizedCommunities);
 router.delete("/posts/:id", deletePost);
 
 router.get("/posts", getAllPosts); // Get all posts (global feed)

@@ -42,15 +42,27 @@ const userSchema = new mongoose.Schema(
     },
 
     // Reporter Specific Fields
-    documents: {
-      aadhaar: { type: String, default: "" },
-      pan: { type: String, default: "" },
-      verificationStatus: {
-        type: String,
-        enum: ["Not Applied", "Pending", "Verified", "Rejected"],
-        default: "Not Applied"
-      }
-    },
+   documents: {
+  aadhaarNumber: { type: String, default: "" },
+  aadhaarName: { type: String, default: "" },
+  aadhaarDOB: { type: String, default: "" },
+
+  panNumber: { type: String, default: "" },
+  panName: { type: String, default: "" },
+  panDOB: { type: String, default: "" },
+
+  verificationStatus: {
+    type: String,
+    enum: [
+      "Not Applied",
+      "Pending",
+      "Verified",
+      "Rejected",
+      "Document Verification Failed"
+    ],
+    default: "Not Applied"
+  }
+},
 
     earnings: {
       currentBalance: { type: Number, default: 0 },
@@ -89,12 +101,21 @@ const userSchema = new mongoose.Schema(
     }],
 
     // Saved Content (Polymorphic-like)
-    savedContent: [{
-      item: { type: mongoose.Schema.Types.ObjectId, required: true, refPath: 'savedContent.itemModel' },
-      itemModel: { type: String, required: true, enum: ['News', 'Post', 'Event', 'CaseStudy'] },
-      savedAt: { type: Date, default: Date.now }
-    }],
-
+    savedContent: [
+  {
+    item: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      refPath: "savedContent.itemModel"
+    },
+    itemModel: {
+      type: String,
+      required: true,
+      enum: ["News", "Post", "Event", "CaseStudy"]
+    },
+    savedAt: { type: Date, default: Date.now }
+  }
+],
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },
     resetOTP: { type: String, default: null },
@@ -120,3 +141,4 @@ userSchema.pre('save', async function (next) {
 });
 
 export default mongoose.model("User", userSchema);
+

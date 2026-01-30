@@ -44,8 +44,10 @@ const newsSchema = new mongoose.Schema(
             type: String,
             default: ""
         },
-        views: { type: Number, default: 0 },
+    likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+viewedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
         likes: { type: Number, default: 0 },
+        views: { type: Number, default: 0 },
         shares: { type: Number, default: 0 },
         image: { type: String, default: "" },
         date: { type: Date, default: Date.now }

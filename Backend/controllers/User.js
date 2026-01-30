@@ -4,12 +4,14 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendEmail } from "../middlewares/nodeMailer.js";
 import { logActivity } from "./Activity.js";
+import extractNameAndDOB from "../utils/compareImages.js";
+import { log } from "console";
 
 
 /* ================= REGISTER (UPDATED) ================= */
 export const registerUser = async (req, res) => {
   try {
-    const { email, password, role = 'User', ...rest } = req.body;
+    const { email, password, fullName, role = 'User', ...rest } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
@@ -19,13 +21,14 @@ export const registerUser = async (req, res) => {
 
     const newUser = new User({
       email,
+      fullName,
       password: hashedPassword,
       role,
       ...rest
     });
 
     await newUser.save();
-    res.status(201).json({ message: "User registered successfully", customId: newUser.customId });
+    res.status(201).json({ message: "User registered successfully", customId: newUser });
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Server error" });
@@ -63,9 +66,13 @@ export const getUsers = async (req, res) => {
   try {
     const { role } = req.query;
     const query = role ? { role } : {};
-    const users = await User.find(query).select("-password").sort({ createdAt: -1 });
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ createdAt: -1 });
+
     res.status(200).json(users);
-  } catch {
+  } catch (error) {
+    console.error("Get Users Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -74,9 +81,9 @@ export const getUsers = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, phone, role, address, profilePicture, email } = req.body; // Added profilePicture
+    const { fullName, phone, role, address, profilePicture, email, interests, ...rest } = req.body; // Added profilePicture
 
-    const updateData = { fullName, phone, role, address, email };
+    const updateData = { fullName, phone, role, address, email, interests, ...rest };
 
     if (profilePicture) {
       updateData.profilePicture = profilePicture;
@@ -295,85 +302,243 @@ export const getReporters = async (req, res) => {
 export const verifyReporter = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, note } = req.body; // status: "Verified" or "Rejected"
+    const { status, note } = req.body; // status: "Verified" | "Rejected"
 
     const user = await User.findById(id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    const aadhaarName = user.documents?.extractedAadhaarName;
+    const panName = user.documents?.extractedPanName;
+
+    // 🔐 Safety check before verification
     if (status === "Verified") {
+      if (!aadhaarName || !panName) {
+        return res.status(400).json({
+          message: "OCR data missing. Cannot verify reporter."
+        });
+      }
+
+      const isNameMatch =
+        aadhaarName.trim().toLowerCase() ===
+        panName.trim().toLowerCase();
+
+      if (!isNameMatch) {
+        user.documents.verificationStatus = "Rejected";
+        user.role = "User";
+
+        await user.save();
+
+        return res.status(400).json({
+          message: "Aadhaar and PAN name do not match. Reporter rejected.",
+          aadhaarName,
+          panName
+        });
+      }
+
+      // ✅ Name matched → approve reporter
       user.documents.verificationStatus = "Verified";
-      user.role = "Reporter"; // Upgrade role
+      user.role = "Reporter";
       user.status = "Active";
-    } else if (status === "Rejected") {
+    }
+
+    // ❌ Manual rejection by Admin
+    if (status === "Rejected") {
       user.documents.verificationStatus = "Rejected";
-      // Optional: Reset role or keep as User
       user.role = "User";
+      user.status = "Inactive";
+    }
+
+    if (note) {
+      user.documents.note = note; // optional admin remark
     }
 
     await user.save();
-    res.status(200).json({ message: "Reporter status updated", user });
+
+    res.status(200).json({
+      message: "Reporter verification updated successfully",
+      user
+    });
+
   } catch (error) {
     console.error("Verify Reporter Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
+
 /* ================= REPORTER APPLICATION (NEW) ================= */
 export const applyForReporter = async (req, res) => {
   try {
-    const userId = req.user?.id || req.body.userId; // Allow userId in body for testing
-    const { aadhaar, pan } = req.body;
+    // ✅ FIX 1: correct user id
+    const userId = req.user._id;
+
+    const {
+      aadhaarNumber,
+      aadhaarName,
+      aadhaarDOB,
+      panNumber,
+      panName,
+      panDOB
+    } = req.body;
+
+    console.log("Apply Reporter Body:", req.body);
+
+    // ✅ Validation
+    if (
+      !aadhaarNumber ||
+      !aadhaarName ||
+      !aadhaarDOB ||
+      !panNumber ||
+      !panName ||
+      !panDOB
+    ) {
+      return res.status(400).json({
+        message: "All Aadhaar and PAN details are required"
+      });
+    }
 
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    // ✅ FIX 2: Safe normalize function
+    const clean = (str = "") =>
+      String(str).replace(/\s+/g, "").toLowerCase();
+
+    const isNameMatch =
+      clean(aadhaarName) === clean(panName);
+
+    // ✅ FIX 3: Normalize DOB comparison
+    const isDOBMatch =
+      new Date(aadhaarDOB).toISOString().slice(0, 10) ===
+      new Date(panDOB).toISOString().slice(0, 10);
+
+    // ❌ If mismatch → reject
+    if (!isNameMatch || !isDOBMatch) {
+      user.documents = {
+        aadhaarNumber,
+        aadhaarName,
+        aadhaarDOB,
+        panNumber,
+        panName,
+        panDOB,
+        verificationStatus: "Rejected"
+      };
+
+      user.status = "Rejected";
+
+      await user.save();
+
+      return res.status(400).json({
+        message: "Aadhaar and PAN details do not match. Application rejected."
+      });
+    }
+
+    // ✅ If matched → Pending
     user.documents = {
-      aadhaar,
-      pan,
+      aadhaarNumber,
+      aadhaarName,
+      aadhaarDOB,
+      panNumber,
+      panName,
+      panDOB,
       verificationStatus: "Pending"
     };
 
+    user.status = "Pending";
+
     await user.save();
-    res.status(200).json({ message: "Application submitted successfully", user });
+
+    return res.status(200).json({
+      message: "Reporter application submitted successfully",
+      status: "Pending for Admin Verification"
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    console.error("Apply Reporter Error:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ================= SAVED CONTENT (NEW) ================= */
 export const saveContent = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { itemId, itemModel } = req.body; // e.g., "News", "Post"
+    const userId = req.user.id; // always from auth
+    const { itemId, itemModel } = req.body;
+
+    if (!itemId || !itemModel) {
+      return res.status(400).json({ message: "itemId and itemModel are required" });
+    }
 
     const user = await User.findById(userId);
-
-    const exists = user.savedContent.find(s => s.item.toString() === itemId);
-
-    if (exists) {
-      user.savedContent = user.savedContent.filter(s => s.item.toString() !== itemId);
-      await user.save();
-      return res.status(200).json({ message: "Content unsaved", saved: false });
-    } else {
-      user.savedContent.push({ item: itemId, itemModel });
-      await user.save();
-
-      await logActivity(userId, "Save", itemModel, itemId, `Saved ${itemModel}`);
-
-      return res.status(200).json({ message: "Content saved", saved: true });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
+
+    const exists = user.savedContent.find(
+      s => s.item.toString() === itemId && s.itemModel === itemModel
+    );
+
+    // UNSAVE
+    if (exists) {
+      user.savedContent = user.savedContent.filter(
+        s => !(s.item.toString() === itemId && s.itemModel === itemModel)
+      );
+      await user.save();
+
+      return res.status(200).json({
+        message: "Content unsaved",
+        saved: false
+      });
+    }
+
+    // SAVE
+    user.savedContent.push({ item: itemId, itemModel });
+    await user.save();
+
+    await logActivity(
+      userId,
+      "Save",
+      itemModel,
+      itemId,
+      `Saved ${itemModel}`
+    );
+
+    res.status(200).json({
+      message: "Content saved",
+      saved: true
+    });
+
   } catch (error) {
+    console.error("Save Content Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 export const getSavedContent = async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log("Fetching saved content for User ID:", userId);
-    const user = await User.findById(userId).populate('savedContent.item');
-    res.status(200).json(user.savedContent);
+
+    const user = await User.findById(userId)
+      .populate("savedContent.item");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      count: user.savedContent.length,
+      savedContent: user.savedContent
+    });
   } catch (error) {
+    console.error("Get Saved Content Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
