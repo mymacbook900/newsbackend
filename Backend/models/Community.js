@@ -9,11 +9,11 @@ const communitySchema = new mongoose.Schema(
             trim: true
         },
         description: { type: String, default: "" },
-        image: { type: String, default: "" }, // Banner/Logo
-        Categories: [{ type: String }], // Community Topics
+        image: { type: String, default: "" }, 
+        Categories: [{ type: String }], 
         type: {
             type: String,
-            enum: ["Single", "Multi"], // Single Creator vs Multi-User
+            enum: ["Single", "Multi"], 
             default: "Single"
         },
 
@@ -23,13 +23,11 @@ const communitySchema = new mongoose.Schema(
             required: true
         },
 
-        // For Multi-User Communities
         authorizedPersons: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
         }],
 
-        // Members and Followers
         members: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
@@ -59,7 +57,6 @@ const communitySchema = new mongoose.Schema(
         emailOTPExpires: { type: Date, default: null },
         isEmailVerified: { type: Boolean, default: false },
 
-        // Multi-User Approval
         pendingAuthorizedPersons: [{
             userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
             email: { type: String },

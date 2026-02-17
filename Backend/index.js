@@ -15,6 +15,7 @@ import analyticsRoutes from "./routers/Analytics.js";
 import caseStudyRoutes from "./routers/caseStudyRouter.js";
 import settingsRoutes from "./routers/settingsRouter.js";
 import reporterRoutes from "./routers/Reporter.js";
+import postRoutes from "./routers/post.js";
 
 dotenv.config();
 
@@ -59,6 +60,8 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/casestudies", caseStudyRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/reporter", reporterRoutes);
+app.use("/api/posts", postRoutes);
+
 
 app.use((err, req, res, next) => {
     if (err.name === 'CastError') {
@@ -70,7 +73,17 @@ app.use((err, req, res, next) => {
     res.status(status).json({ message: err.message || "Internal Server Error", debug: true });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, "localhost", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+app.get('/',(req,res)=>{
+    res.status(200).json({
+        success : true,
+        message : "Apis runninggg"
+    })
+
+})
+
+const PORT = process.env.PORT || 3000;
+const host = "0.0.0.0";
+
+app.listen(PORT, host, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
